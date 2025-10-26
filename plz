@@ -1,0 +1,465 @@
+--[[
+    M-SAB: Steal A Brainrot Game Script (Final Version)
+    Features: Separated Speed/Jump Control (Settable), Invisibility, Anti-Hit,
+    Instant Steal, and Wallhack (Noclip).
+    UI: Draggable and Minimizable Panel.
+    Designed to be executed via a Roblox executor.
+--]]
+
+-- CORE VARIABLES
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+
+-- CONFIGURATION
+local config = {
+    MaxSetting = 500, -- Max value for speed/jump settings
+    DefaultSpeed = 16, -- Roblox default speed
+    IsActive = false,
+    TargetItemName = "Brainrot", -- Item name to look for (Case sensitive)
+    
+    -- !!! CRITICAL: REPLACE THESE COORDINATES !!!
+    -- Find the Vector3 coordinates of your base's drop-off zone and enter them here.
+    BaseCoords = Vector3.new(0, 50, 0),
+    -- !!! END CRITICAL SECTION !!!
+    
+    -- Settable Values (Initial State)
+    WalkSpeedValue = 100,
+    JumpPowerValue = 100,
+    
+    Toggles = {
+        WalkSpeed = false,
+        JumpPower = false,
+        Invisibility = false,
+        AntiHit = false,
+        InstantSteal = false,
+        Noclip = false,
+    }
+}
+
+-- STATE VARIABLES
+local antiHitConnection = nil
+local brainrotConnection = nil
+local originalProps = {} -- Stores original character properties
+local isMinimized = false
+
+-- UI DIMENSIONS
+local PANEL_WIDTH = 200
+local PANEL_HEIGHT_MAX = 350 -- Increased size for new sliders/toggles
+local TITLE_BAR_HEIGHT = 30
+local PANEL_HEIGHT_MIN = TITLE_BAR_HEIGHT -- Minimized height
+
+-- UI SETUP
+local gui = Instance.new("ScreenGui")
+gui.Name = "MSAB_GUI"
+gui.IgnoreGuiInset = true
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Main Frame
+local frame = Instance.new("Frame")
+frame.Name = "ControlPanel"
+frame.Size = UDim2.new(0, PANEL_WIDTH, 0, PANEL_HEIGHT_MAX)
+frame.Position = UDim2.new(1, -210, 0.5, -PANEL_HEIGHT_MAX / 2)
+frame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+frame.BorderColor3 = Color3.new(0.9, 0.9, 0.9)
+frame.BorderSizePixel = 2
+frame.Parent = gui
+
+-- TITLE BAR (DRAG/MINIMIZE)
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, TITLE_BAR_HEIGHT)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundColor3 = Color3.new(0.8, 0.1, 0.1)
+titleBar.Parent = frame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Text = "M-SAB Control Panel"
+titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
+titleLabel.BackgroundColor3 = Color3.new(0.8, 0.1, 0.1)
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 18
+titleLabel.Parent = titleBar
+
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Text = "—"
+minimizeBtn.Size = UDim2.new(0, 30, 1, 0)
+minimizeBtn.Position = UDim2.new(1, -35, 0, 0)
+minimizeBtn.BackgroundColor3 = Color3.new(0.6, 0.1, 0.1)
+minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
+minimizeBtn.Font = Enum.Font.SourceSansBold
+minimizeBtn.TextSize = 20
+minimizeBtn.Parent = titleBar
+
+-- CONTENT FRAME
+local contentFrame = Instance.new("Frame")
+contentFrame.Name = "ContentFrame"
+contentFrame.Size = UDim2.new(1, 0, 1, -TITLE_BAR_HEIGHT)
+contentFrame.Position = UDim2.new(0, 0, 0, TITLE_BAR_HEIGHT)
+contentFrame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+contentFrame.BorderSizePixel = 0
+contentFrame.Parent = frame
+
+local layout = Instance.new("UIListLayout")
+layout.FillDirection = Enum.FillDirection.Vertical
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.Padding = UDim.new(0, 5)
+layout.Parent = contentFrame
+
+local paddingFrame = Instance.new("Frame")
+paddingFrame.Size = UDim2.new(1, 0, 0, 5) -- Spacer
+paddingFrame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+paddingFrame.BorderSizePixel = 0
+paddingFrame.Parent = contentFrame
+
+-- BUTTON AND CONTROL REFERENCES
+local speedToggleBtn, speedInput, jumpToggleBtn, jumpInput, invisBtn, antiHitBtn, stealBtn, noclipBtn, allBtn
+
+-- HELPER FUNCTIONS
+
+-- Creates a standard toggle button
+local function createToggleButton(name, key, callback)
+    local btn = Instance.new("TextButton")
+    btn.Name = name .. "Button"
+    btn.Text = name .. ": [OFF]"
+    btn.Size = UDim2.new(0.9, 0, 0, 30)
+    btn.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.SourceSans
+    btn.TextSize = 14
+    btn.Parent = contentFrame
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 5)
+    padding.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        callback(not config.Toggles[key])
+    end)
+    return btn
+end
+
+-- Creates a control group for speed/jump with an input field
+local function createSpeedControl(name, key, initialValue)
+    -- Frame to hold label and input
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(0.9, 0, 0, 40)
+    container.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    container.BorderSizePixel = 0
+    container.Parent = contentFrame
+
+    local controlLabel = Instance.new("TextLabel")
+    controlLabel.Text = name .. " Value:"
+    controlLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    controlLabel.Position = UDim2.new(0, 0, 0, 0)
+    controlLabel.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    controlLabel.TextColor3 = Color3.new(1, 1, 1)
+    controlLabel.TextXAlignment = Enum.TextXAlignment.Left
+    controlLabel.Font = Enum.Font.SourceSans
+    controlLabel.TextSize = 14
+    controlLabel.Parent = container
+
+    local input = Instance.new("TextBox")
+    input.Name = key .. "Input"
+    input.Text = tostring(initialValue)
+    input.Size = UDim2.new(0.4, 0, 0.8, 0)
+    input.Position = UDim2.new(0.6, 0, 0.1, 0)
+    input.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+    input.TextColor3 = Color3.new(1, 1, 1)
+    input.Font = Enum.Font.SourceSans
+    input.TextSize = 14
+    input.Parent = container
+
+    -- Update logic when user finishes typing
+    input.FocusLost:Connect(function(enterPressed)
+        local newValue = tonumber(input.Text)
+        if newValue and newValue >= 1 and newValue <= config.MaxSetting then
+            config[key .. "Value"] = newValue
+            print(name .. " set to: " .. newValue)
+            -- Apply immediately if the toggle is ON
+            if config.Toggles[key] then
+                if key == "WalkSpeed" then applyWalkSpeed(true)
+                elseif key == "JumpPower" then applyJumpPower(true) end
+            end
+        else
+            -- Revert text if input is invalid
+            input.Text = tostring(config[key .. "Value"])
+        end
+    end)
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 5)
+    padding.Parent = controlLabel
+
+    return input
+end
+
+-- CORE FEATURE FUNCTIONS
+
+-- Applies WalkSpeed to the character
+local function applyWalkSpeed(active)
+    config.Toggles.WalkSpeed = active
+    speedToggleBtn.Text = "WalkSpeed: [" .. (active and "ON" or "OFF") .. "]"
+
+    local character = LocalPlayer.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        humanoid.WalkSpeed = active and config.WalkSpeedValue or config.DefaultSpeed
+    end
+end
+
+-- Applies JumpPower to the character
+local function applyJumpPower(active)
+    config.Toggles.JumpPower = active
+    jumpToggleBtn.Text = "JumpPower: [" .. (active and "ON" or "OFF") .. "]"
+
+    local character = LocalPlayer.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        humanoid.JumpPower = active and config.JumpPowerValue or config.DefaultSpeed
+    end
+end
+
+-- Invisibility
+local function toggleInvisibility(active)
+    config.Toggles.Invisibility = active
+    invisBtn.Text = "Invisible: [" .. (active and "ON" or "OFF") .. "]"
+
+    local character = LocalPlayer.Character
+    if not character then return end
+
+    local function updatePart(part)
+        if part:IsA("BasePart") then
+            if not originalProps[part] then
+                originalProps[part] = {
+                    Transparency = part.Transparency,
+                    CanCollide = part.CanCollide,
+                }
+            end
+
+            if active then
+                part.Transparency = 1
+                part.CanCollide = false
+            elseif originalProps[part] then
+                part.Transparency = originalProps[part].Transparency
+                part.CanCollide = originalProps[part].CanCollide
+                originalProps[part] = nil
+            end
+        end
+    end
+
+    for _, part in ipairs(character:GetDescendants()) do
+        updatePart(part)
+    end
+end
+
+-- Anti-Hit
+local function toggleAntiHit(active)
+    config.Toggles.AntiHit = active
+    antiHitBtn.Text = "Anti Hit: [" .. (active and "ON" or "OFF") .. "]"
+
+    if antiHitConnection then
+        antiHitConnection:Disconnect()
+        antiHitConnection = nil
+    end
+
+    if active then
+        antiHitConnection = RunService.Stepped:Connect(function()
+            local character = LocalPlayer.Character
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health < humanoid.MaxHealth then
+                humanoid.Health = humanoid.MaxHealth
+            end
+        end)
+    end
+end
+
+-- Wallhack (Noclip)
+local function toggleNoclip(active)
+    config.Toggles.Noclip = active
+    noclipBtn.Text = "Wallhack (Noclip): [" .. (active and "ON" or "OFF") .. "]"
+
+    local character = LocalPlayer.Character
+    local hRoot = character and character:FindFirstChild("HumanoidRootPart")
+
+    if hRoot then
+        hRoot.CanCollide = not active -- Disable collision when active
+        print("Noclip set to: " .. tostring(not hRoot.CanCollide))
+    end
+end
+
+-- Instant Steal
+local function isBrainrotItem(item)
+    -- Check item name or a custom attribute often used for flags/items
+    return item and (item.Name == config.TargetItemName or item:GetAttribute("IsBrainrotFlag"))
+end
+
+local function checkBrainrot(child)
+    if not config.Toggles.InstantSteal then return end
+
+    if isBrainrotItem(child) then
+        local character = LocalPlayer.Character
+        local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+        if humanoidRootPart and character.PrimaryPart then
+            print("Brainrot/Flag detected! Instant delivery initiated.")
+            -- Set CFrame of the character's primary part (usually HumanoidRootPart)
+            character:SetPrimaryPartCFrame(CFrame.new(config.BaseCoords))
+            
+            -- Wait a moment for the server to register the drop-off
+            task.wait(0.5)
+        end
+    end
+end
+
+local function toggleInstantSteal(active)
+    config.Toggles.InstantSteal = active
+    stealBtn.Text = "Instant Steal: [" .. (active and "ON" or "OFF") .. "]"
+
+    if brainrotConnection then
+        brainrotConnection:Disconnect()
+        brainrotConnection = nil
+    end
+
+    if active then
+        local character = LocalPlayer.Character
+        if character then
+            brainrotConnection = character.ChildAdded:Connect(checkBrainrot)
+            
+            -- Initial check in case item was picked up just before toggling
+            for _, child in ipairs(character:GetChildren()) do
+                if isBrainrotItem(child) then
+                    checkBrainrot(child)
+                    break
+                end
+            end
+        end
+    end
+end
+
+-- MASTER TOGGLE & CHARACTER HANDLER
+
+local function toggleAll()
+    config.IsActive = not config.IsActive
+    allBtn.Text = "TOGGLE ALL: [" .. (config.IsActive and "ON" or "OFF") .. "]"
+
+    -- Apply all toggles
+    applyWalkSpeed(config.IsActive)
+    applyJumpPower(config.IsActive)
+    toggleInvisibility(config.IsActive)
+    toggleAntiHit(config.IsActive)
+    toggleInstantSteal(config.IsActive)
+    toggleNoclip(config.IsActive)
+end
+
+local function characterSetup(character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    -- Reapply states if active/toggled on
+    if config.Toggles.WalkSpeed then applyWalkSpeed(true) end
+    if config.Toggles.JumpPower then applyJumpPower(true) end
+    if config.Toggles.Invisibility then toggleInvisibility(true) end
+    if config.Toggles.AntiHit then toggleAntiHit(true) end
+    if config.Toggles.InstantSteal then toggleInstantSteal(true) end
+    if config.Toggles.Noclip then toggleNoclip(true) end
+end
+
+-- Connect to character changes
+LocalPlayer.CharacterAdded:Connect(characterSetup)
+if LocalPlayer.Character then
+    characterSetup(LocalPlayer.Character)
+end
+
+-- DRAGGING LOGIC (UI MOVABILITY)
+local dragging = false
+local dragStart = Vector2.new(0, 0)
+local frameStart = UDim2.new(0, 0, 0, 0)
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        frameStart = frame.Position
+        titleBar.ZIndex = 2
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(frameStart.X.Scale, frameStart.X.Offset + delta.X, frameStart.Y.Scale, frameStart.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType.Touch then
+        dragging = false
+        titleBar.ZIndex = 1
+    end
+end)
+
+-- MINIMIZE LOGIC
+minimizeBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    contentFrame.Visible = not isMinimized
+    
+    if isMinimized then
+        frame.Size = UDim2.new(0, PANEL_WIDTH, 0, PANEL_HEIGHT_MIN)
+        minimizeBtn.Text = "+"
+    else
+        frame.Size = UDim2.new(0, PANEL_WIDTH, 0, PANEL_HEIGHT_MAX)
+        minimizeBtn.Text = "—"
+    end
+end)
+
+-- CREATE UI ELEMENTS
+
+-- Speed Controls
+speedInput = createSpeedControl("WalkSpeed", "WalkSpeed", config.WalkSpeedValue)
+speedToggleBtn = createToggleButton("WalkSpeed", "WalkSpeed", applyWalkSpeed)
+
+jumpInput = createSpeedControl("JumpPower", "JumpPower", config.JumpPowerValue)
+jumpToggleBtn = createToggleButton("JumpPower", "JumpPower", applyJumpPower)
+
+-- Other Toggles
+invisBtn = createToggleButton("Invisible", "Invisibility", toggleInvisibility)
+antiHitBtn = createToggleButton("Anti Hit", "AntiHit", toggleAntiHit)
+stealBtn = createToggleButton("Instant Steal", "InstantSteal", toggleInstantSteal)
+noclipBtn = createToggleButton("Wallhack (Noclip)", "Noclip", toggleNoclip)
+
+-- Separator
+local separator = Instance.new("Frame")
+separator.Size = UDim2.new(1, 0, 0, 1)
+separator.BackgroundColor3 = Color3.new(0.4, 0.4, 0.4)
+separator.Parent = contentFrame
+
+-- Master Toggle Button
+allBtn = Instance.new("TextButton")
+allBtn.Name = "ToggleAllButton"
+allBtn.Text = "TOGGLE ALL: [OFF]"
+allBtn.Size = UDim2.new(0.9, 0, 0, 35)
+allBtn.BackgroundColor3 = Color3.new(0.0, 0.5, 0.0)
+allBtn.TextColor3 = Color3.new(1, 1, 1)
+allBtn.Font = Enum.Font.SourceSansBold
+allBtn.TextSize = 16
+allBtn.Parent = contentFrame
+allBtn.TextXAlignment = Enum.TextXAlignment.Center
+
+local paddingAll = Instance.new("UIPadding")
+paddingAll.PaddingTop = UDim.new(0, 5)
+paddingAll.Parent = allBtn
+
+allBtn.MouseButton1Click:Connect(toggleAll)
+
+-- INITIAL STATE
+toggleAll()
+allBtn.Text = "TOGGLE ALL: [OFF]"
+config.IsActive = false
