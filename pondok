@@ -1,0 +1,329 @@
+-- M-SAB Combined Setup Script
+-- Place this single Script into ServerScriptService in Studio. When run in Studio/Server,
+-- it will create the RemoteEvent and a LocalScript inside StarterGui that runs on clients.
+-- WARNING: Use only in places you own or have permission to modify.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local ServerStorage = game:GetService("ServerStorage")
+
+-- Configuration: edit these before running
+local ADMIN_USERNAMES = {
+    ["GPXcelii"] = true,
+    -- ["OtherAdmin"] = true,
+}
+
+-- Create RemoteEvent if missing
+local remoteName = "M_SAB_Remote"
+local remote = ReplicatedStorage:FindFirstChild(remoteName)
+if not remote then
+    remote = Instance.new("RemoteEvent")
+    remote.Name = remoteName
+    remote.Parent = ReplicatedStorage
+end
+
+-- Server-side functionality
+local invulConnections = {}
+
+local function isAdmin(player)
+    return ADMIN_USERNAMES[player.Name] == true
+end
+
+local function enableInvulnerability(player, enable)
+    local char = player.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+    if not humanoid then return end
+
+    if enable then
+        if invulConnections[player] then return end
+        local conn = humanoid.HealthChanged:Connect(function()
+            if humanoid.Health < humanoid.MaxHealth then
+                humanoid.Health = humanoid.MaxHealth
+            end
+        end)
+        invulConnections[player] = conn
+        humanoid.MaxHealth = math.max(humanoid.MaxHealth, 100)
+        humanoid.Health = humanoid.MaxHealth
+    else
+        if invulConnections[player] then
+            invulConnections[player]:Disconnect()
+            invulConnections[player] = nil
+        end
+    end
+end
+
+local function instantStealAction(requester, targetName)
+    if not isAdmin(requester) then return false, "Not admin" end
+    local target = Players:FindFirstChild(targetName)
+    if not target or not target.Character then
+        return false, "Target not found"
+    end
+
+    -- Example template: transfer an IntValue named "Brains" in leaderstats
+    local function getStat(plr, statName)
+        if plr:FindFirstChild("leaderstats") then
+            return plr.leaderstats:FindFirstChild(statName)
+        end
+    end
+    local tStat = getStat(target, "Brains")
+    local rStat = getStat(requester, "Brains")
+    if not tStat or not rStat then
+        return false, "Brains stat missing"
+    end
+    local amount = tStat.Value
+    rStat.Value = rStat.Value + amount
+    tStat.Value = 0
+    return true, "Stole " .. tostring(amount) .. " brains"
+end
+
+remote.OnServerEvent:Connect(function(player, action, ...)
+    if not isAdmin(player) then
+        return
+    end
+
+    if action == "SetWalkSpeed" then
+        local speed = tonumber((...))
+        speed = math.clamp(speed or 16, 0, 100)
+        local char = player.Character
+        if char then
+            local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = speed
+            end
+        end
+
+    elseif action == "SetJumpPower" then
+        local jp = tonumber((...))
+        jp = math.clamp(jp or 50, 0, 100)
+        local char = player.Character
+        if char then
+            local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+            if humanoid then
+                humanoid.JumpPower = jp
+            end
+        end
+
+    elseif action == "ToggleInvis" then
+        local enable = ...
+        local char = player.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = enable and 1 or 0
+                    part.CanCollide = not enable
+                elseif part:IsA("Decal") then
+                    part.Transparency = enable and 1 or 0
+                elseif part:IsA("Accessory") then
+                    local handle = part:FindFirstChild("Handle")
+                    if handle then
+                        handle.Transparency = enable and 1 or 0
+                    end
+                end
+            end
+        end
+
+    elseif action == "ToggleInvul" then
+        local enable = ...
+        enableInvulnerability(player, enable)
+
+    elseif action == "InstantSteal" then
+        local targetName = ...
+        local success, msg = instantStealAction(player, targetName)
+        remote:FireClient(player, "InstantStealResult", success, msg)
+
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    if invulConnections[plr] then
+        invulConnections[plr]:Disconnect()
+        invulConnections[plr] = nil
+    end
+end)
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function(char)
+        local humanoid = char:WaitForChild("Humanoid")
+        humanoid.WalkSpeed = 16
+        humanoid.JumpPower = 50
+    end)
+end)
+
+-- Create LocalScript source to be placed in StarterGui
+local localSource = [[
+-- M-SAB Client LocalScript
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local remote = ReplicatedStorage:WaitForChild("M_SAB_Remote")
+
+-- Create ScreenGui if not present
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "M_SAB_GUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local function makeTextButton(name, pos, text)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Size = UDim2.new(0,140,0,30)
+    btn.Position = pos
+    btn.Text = text
+    btn.Parent = screenGui
+    btn.BackgroundTransparency = 0.3
+    return btn
+end
+
+local function makeSlider(name, pos, min, max, default)
+    local frame = Instance.new("Frame")
+    frame.Name = name
+    frame.Size = UDim2.new(0,220,0,40)
+    frame.Position = pos
+    frame.Parent = screenGui
+
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(0.6,0,1,0)
+    label.Text = name
+    label.TextScaled = true
+    label.BackgroundTransparency = 1
+
+    local valueLabel = Instance.new("TextLabel", frame)
+    valueLabel.Size = UDim2.new(0.4,0,1,0)
+    valueLabel.Position = UDim2.new(0.6,0,0,0)
+    valueLabel.Text = tostring(default)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.TextScaled = true
+
+    return frame, valueLabel
+end
+
+local y = 10
+local walkFrame, walkValue = makeSlider("WalkSpeed", UDim2.new(0,10,0,y), 0, 100, 16); y = y + 45
+local jumpFrame, jumpValue = makeSlider("JumpPower", UDim2.new(0,10,0,y), 0, 100, 50); y = y + 45
+local invisBtn = makeTextButton("ToggleInvis", UDim2.new(0,10,0,y), "Toggle Invis (Off)"); y = y + 35
+local invulBtn = makeTextButton("ToggleInvul", UDim2.new(0,10,0,y), "Toggle Invul (Off)"); y = y + 35
+local espBtn = makeTextButton("ToggleESP", UDim2.new(0,10,0,y), "Toggle ESP (Off)"); y = y + 35
+local stealBtn = makeTextButton("InstantSteal", UDim2.new(0,10,0,y), "Instant Steal Target"); y = y + 35
+
+local function sliderSetup(frame, valueLabel, min, max, initial, onChange)
+    local value = initial
+    valueLabel.Text = tostring(value)
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            value = math.clamp(value + 1, min, max)
+            valueLabel.Text = tostring(value)
+            if onChange then onChange(value) end
+        end
+    end)
+    return function() return value end
+end
+
+local walkGet = sliderSetup(walkFrame, walkValue, 0, 100, 16, function(v)
+    remote:FireServer("SetWalkSpeed", v)
+end)
+local jumpGet = sliderSetup(jumpFrame, jumpValue, 0, 100, 50, function(v)
+    remote:FireServer("SetJumpPower", v)
+end)
+
+local invisOn = false
+invisBtn.MouseButton1Click:Connect(function()
+    invisOn = not invisOn
+    invisBtn.Text = "Toggle Invis (" .. (invisOn and "On" or "Off") .. ")"
+    remote:FireServer("ToggleInvis", invisOn)
+end)
+
+local invulOn = false
+invulBtn.MouseButton1Click:Connect(function()
+    invulOn = not invulOn
+    invulBtn.Text = "Toggle Invul (" .. (invulOn and "On" or "Off") .. ")"
+    remote:FireServer("ToggleInvul", invulOn)
+end)
+
+local espOn = false
+local espBillboards = {}
+
+local function enableESP(enable)
+    espOn = enable
+    if not enable then
+        for _, gui in pairs(espBillboards) do
+            if gui and gui.Parent then gui:Destroy() end
+        end
+        espBillboards = {}
+        return
+    end
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("Head") then
+            local head = plr.Character:FindFirstChild("Head")
+            local bb = Instance.new("BillboardGui")
+            bb.Name = "M_SAB_ESP"
+            bb.Size = UDim2.new(0,100,0,30)
+            bb.AlwaysOnTop = true
+            bb.Adornee = head
+            bb.Parent = player:WaitForChild("PlayerGui")
+            local label = Instance.new("TextLabel", bb)
+            label.Size = UDim2.new(1,0,1,0)
+            label.Text = plr.Name
+            label.BackgroundTransparency = 0.5
+            label.TextScaled = true
+            table.insert(espBillboards, bb)
+        end
+    end
+end
+
+espBtn.MouseButton1Click:Connect(function()
+    enableESP(not espOn)
+    espBtn.Text = "Toggle ESP (" .. (espOn and "On" or "Off") .. ")"
+end)
+
+stealBtn.MouseButton1Click:Connect(function()
+    local prompt = Instance.new("TextBox", screenGui)
+    prompt.Size = UDim2.new(0,200,0,30)
+    prompt.Position = UDim2.new(0,160,0,10)
+    prompt.PlaceholderText = "Target player name"
+    prompt.Text = ""
+    prompt.FocusLost:Connect(function()
+        local name = prompt.Text
+        prompt:Destroy()
+        if name and name ~= "" then
+            remote:FireServer("InstantSteal", name)
+        end
+    end)
+end)
+
+remote.OnClientEvent:Connect(function(action, ...)
+    if action == "InstantStealResult" then
+        local success, msg = ...
+        local notice = Instance.new("TextLabel", screenGui)
+        notice.Size = UDim2.new(0,240,0,30)
+        notice.Position = UDim2.new(0,160,0,50)
+        notice.Text = (success and "Success: " or "Failed: ") .. tostring(msg)
+        notice.TextScaled = true
+        delay(3, function() if notice and notice.Parent then notice:Destroy() end end)
+    end
+end)
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function()
+        if espOn then
+            enableESP(true)
+        end
+    end)
+end)
+]]
+
+-- Place LocalScript into StarterGui if not present
+local existing = StarterGui:FindFirstChild("M_SAB_ClientLocal")
+if not existing then
+    local clientScript = Instance.new("LocalScript")
+    clientScript.Name = "M_SAB_ClientLocal"
+    -- Set the Source; this works inside Studio. If property isn't writable in your environment,
+    -- you can manually create a LocalScript in StarterGui and paste the client code from this file.
+    clientScript.Source = localSource
+    clientScript.Parent = StarterGui
+end
+
+print("M-SAB setup complete. LocalScript placed in StarterGui as 'M_SAB_ClientLocal'. Edit ADMIN_USERNAMES in this script to control who can use admin features.")
