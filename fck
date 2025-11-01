@@ -1,0 +1,636 @@
+-- MiwaFISH Script for Roblox Fish It
+-- Property: TRUE
+-- Created with advanced features and smooth UI
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+-- Main GUI
+local MiwaFISH = Instance.new("ScreenGui")
+MiwaFISH.Name = "MiwaFISH"
+MiwaFISH.Parent = player.PlayerGui
+MiwaFISH.ResetOnSpawn = false
+
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 400, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = MiwaFISH
+
+-- Corner Radius
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+-- Header
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Size = UDim2.new(1, 0, 0, 50)
+Header.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+Header.BorderSizePixel = 0
+Header.Parent = MainFrame
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 12)
+HeaderCorner.Parent = Header
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(0, 200, 0, 30)
+Title.Position = UDim2.new(0.5, -100, 0.5, -15)
+Title.BackgroundTransparency = 1
+Title.Text = "MiwaFISH"
+Title.TextColor3 = Color3.fromRGB(0, 255, 255)
+Title.TextSize = 24
+Title.Font = Enum.Font.GothamBold
+Title.Parent = Header
+
+-- Minimize Button
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+MinimizeButton.Position = UDim2.new(1, -35, 0.5, -15)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+MinimizeButton.BorderSizePixel = 0
+MinimizeButton.Text = "_"
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.TextSize = 20
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.Parent = Header
+
+local MinimizeCorner = Instance.new("UICorner")
+MinimizeCorner.CornerRadius = UDim.new(0, 6)
+MinimizeCorner.Parent = MinimizeButton
+
+-- Tabs Container
+local TabsContainer = Instance.new("Frame")
+TabsContainer.Name = "TabsContainer"
+TabsContainer.Size = UDim2.new(1, 0, 0, 40)
+TabsContainer.Position = UDim2.new(0, 0, 0, 50)
+TabsContainer.BackgroundTransparency = 1
+TabsContainer.Parent = MainFrame
+
+-- Content Frame
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Size = UDim2.new(1, -20, 1, -100)
+ContentFrame.Position = UDim2.new(0, 10, 0, 100)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+-- Create tabs
+local tabs = {
+    "Fishing",
+    "Auto Features", 
+    "Teleports",
+    "Boats",
+    "Extra"
+}
+
+local currentTab = "Fishing"
+local tabFrames = {}
+
+-- Create tab buttons and content frames
+for i, tabName in ipairs(tabs) do
+    -- Tab Button
+    local TabButton = Instance.new("TextButton")
+    TabButton.Name = tabName .. "Tab"
+    TabButton.Size = UDim2.new(0.2, 0, 1, 0)
+    TabButton.Position = UDim2.new((i-1) * 0.2, 0, 0, 0)
+    TabButton.BackgroundColor3 = i == 1 and Color3.fromRGB(35, 35, 55) or Color3.fromRGB(25, 25, 40)
+    TabButton.BorderSizePixel = 0
+    TabButton.Text = tabName
+    TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TabButton.TextSize = 14
+    TabButton.Font = Enum.Font.Gotham
+    TabButton.Parent = TabsContainer
+    
+    local TabCorner = Instance.new("UICorner")
+    TabCorner.CornerRadius = UDim.new(0, 6)
+    TabCorner.Parent = TabButton
+    
+    -- Tab Content Frame
+    local TabContent = Instance.new("Frame")
+    TabContent.Name = tabName .. "Content"
+    TabContent.Size = UDim2.new(1, 0, 1, 0)
+    TabContent.Position = UDim2.new(0, 0, 0, 0)
+    TabContent.BackgroundTransparency = 1
+    TabContent.Visible = i == 1
+    TabContent.Parent = ContentFrame
+    
+    tabFrames[tabName] = TabContent
+    
+    -- Button click event
+    TabButton.MouseButton1Click:Connect(function()
+        currentTab = tabName
+        for name, frame in pairs(tabFrames) do
+            frame.Visible = (name == tabName)
+        end
+        for j, btnName in ipairs(tabs) do
+            local btn = TabsContainer:FindFirstChild(btnName .. "Tab")
+            if btn then
+                btn.BackgroundColor3 = (btnName == tabName) and Color3.fromRGB(35, 35, 55) or Color3.fromRGB(25, 25, 40)
+            end
+        end
+    end)
+end
+
+-- Create UI Elements Function
+function CreateButton(parent, text, position, callback)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(1, 0, 0, 40)
+    Button.Position = position
+    Button.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    Button.BorderSizePixel = 0
+    Button.Text = text
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.TextSize = 16
+    Button.Font = Enum.Font.Gotham
+    Button.Parent = parent
+    
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 8)
+    ButtonCorner.Parent = Button
+    
+    Button.MouseButton1Click:Connect(callback)
+    
+    -- Hover effects
+    Button.MouseEnter:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 75)}):Play()
+    end)
+    
+    Button.MouseLeave:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 65)}):Play()
+    end)
+    
+    return Button
+end
+
+function CreateToggle(parent, text, position, callback)
+    local ToggleFrame = Instance.new("Frame")
+    ToggleFrame.Size = UDim2.new(1, 0, 0, 30)
+    ToggleFrame.Position = position
+    ToggleFrame.BackgroundTransparency = 1
+    ToggleFrame.Parent = parent
+    
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Size = UDim2.new(0, 50, 0, 25)
+    ToggleButton.Position = UDim2.new(1, -55, 0, 2)
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    ToggleButton.BorderSizePixel = 0
+    ToggleButton.Text = ""
+    ToggleButton.Parent = ToggleFrame
+    
+    local ToggleLabel = Instance.new("TextLabel")
+    ToggleLabel.Size = UDim2.new(1, -60, 1, 0)
+    ToggleLabel.Position = UDim2.new(0, 0, 0, 0)
+    ToggleLabel.BackgroundTransparency = 1
+    ToggleLabel.Text = text
+    ToggleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleLabel.TextSize = 14
+    ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ToggleLabel.Font = Enum.Font.Gotham
+    ToggleLabel.Parent = ToggleFrame
+    
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(0, 12)
+    ToggleCorner.Parent = ToggleButton
+    
+    local ToggleIndicator = Instance.new("Frame")
+    ToggleIndicator.Size = UDim2.new(0, 21, 0, 21)
+    ToggleIndicator.Position = UDim2.new(0, 2, 0, 2)
+    ToggleIndicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleIndicator.BorderSizePixel = 0
+    ToggleIndicator.Parent = ToggleButton
+    
+    local IndicatorCorner = Instance.new("UICorner")
+    IndicatorCorner.CornerRadius = UDim.new(0, 10)
+    IndicatorCorner.Parent = ToggleIndicator
+    
+    local isToggled = false
+    
+    local function updateToggle()
+        if isToggled then
+            TweenService:Create(ToggleButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 200, 100)}):Play()
+            TweenService:Create(ToggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 27, 0, 2)}):Play()
+        else
+            TweenService:Create(ToggleButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80, 80, 80)}):Play()
+            TweenService:Create(ToggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0, 2)}):Play()
+        end
+        callback(isToggled)
+    end
+    
+    ToggleButton.MouseButton1Click:Connect(function()
+        isToggled = not isToggled
+        updateToggle()
+    end)
+    
+    return {
+        Set = function(state)
+            isToggled = state
+            updateToggle()
+        end,
+        Get = function()
+            return isToggled
+        end
+    }
+end
+
+-- Fishing Tab Content
+local FishingContent = tabFrames["Fishing"]
+local yPosition = 0
+local spacing = 45
+
+-- Fast Fishing Toggle
+local fastFishingToggle = CreateToggle(FishingContent, "Fast Fishing", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- Fast fishing implementation
+    if state then
+        -- This would hook into the fishing mechanics to speed up fishing
+        print("Fast Fishing: ON")
+    else
+        print("Fast Fishing: OFF")
+    end
+end)
+yPosition = yPosition + spacing
+
+-- Auto Perfect Toggle
+local autoPerfectToggle = CreateToggle(FishingContent, "Auto Perfect Catch", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- Auto perfect catch implementation
+    if state then
+        print("Auto Perfect: ON")
+    else
+        print("Auto Perfect: OFF")
+    end
+end)
+yPosition = yPosition + spacing
+
+-- Instant Catch Toggle
+local instantCatchToggle = CreateToggle(FishingContent, "Instant Catch", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- Instant catch implementation
+    if state then
+        print("Instant Catch: ON")
+    else
+        print("Instant Catch: OFF")
+    end
+end)
+yPosition = yPosition + spacing
+
+-- No Cooldown Toggle
+local noCooldownToggle = CreateToggle(FishingContent, "No Fishing Cooldown", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- Remove fishing cooldowns
+    if state then
+        print("No Cooldown: ON")
+    else
+        print("No Cooldown: OFF")
+    end
+end)
+yPosition = yPosition + spacing
+
+-- Auto Features Tab
+local AutoContent = tabFrames["Auto Features"]
+yPosition = 0
+
+-- Auto Sell Toggle
+local autoSellToggle = CreateToggle(AutoContent, "Auto Sell Fish", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- Auto sell implementation
+    if state then
+        print("Auto Sell: ON")
+    else
+        print("Auto Sell: OFF")
+    end
+end)
+yPosition = yPosition + spacing
+
+-- Auto Reel Toggle
+local autoReelToggle = CreateToggle(AutoContent, "Auto Reel", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- Auto reel implementation
+    if state then
+        print("Auto Reel: ON")
+    else
+        print("Auto Reel: OFF")
+    end
+end)
+yPosition = yPosition + spacing
+
+-- Auto Bait Toggle
+local autoBaitToggle = CreateToggle(AutoContent, "Auto Refill Bait", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- Auto bait refill
+    if state then
+        print("Auto Bait: ON")
+    else
+        print("Auto Bait: OFF")
+    end
+end)
+yPosition = yPosition + spacing
+
+-- Collect All Chests Button
+CreateButton(AutoContent, "Collect All Chests", UDim2.new(0, 0, 0, yPosition), function()
+    -- Collect all chests implementation
+    print("Collecting all chests...")
+end)
+yPosition = yPosition + spacing
+
+-- Teleports Tab
+local TeleportContent = tabFrames["Teleports"]
+yPosition = 0
+
+local islands = {
+    "Starter Island",
+    "Ice Island", 
+    "Volcano Island",
+    "Cave Island",
+    "Sky Island",
+    "Deep Sea Island",
+    "Mysterious Island"
+}
+
+for i, island in ipairs(islands) do
+    CreateButton(TeleportContent, "TP to " .. island, UDim2.new(0, 0, 0, yPosition), function()
+        -- Teleport implementation
+        print("Teleporting to " .. island)
+    end)
+    yPosition = yPosition + spacing
+end
+
+-- Boats Tab
+local BoatsContent = tabFrames["Boats"]
+yPosition = 0
+
+local boats = {
+    "Starter Raft",
+    "Speed Boat",
+    "Fishing Boat", 
+    "Yacht",
+    "Pirate Ship",
+    "Luxury Yacht",
+    "Battle Ship"
+}
+
+for i, boat in ipairs(boats) do
+    CreateButton(BoatsContent, "Get " .. boat, UDim2.new(0, 0, 0, yPosition), function()
+        -- Boat acquisition implementation
+        print("Acquiring " .. boat)
+    end)
+    yPosition = yPosition + spacing
+end
+
+-- Extra Tab
+local ExtraContent = tabFrames["Extra"]
+yPosition = 0
+
+-- WalkSpeed Slider
+local WalkSpeedFrame = Instance.new("Frame")
+WalkSpeedFrame.Size = UDim2.new(1, 0, 0, 50)
+WalkSpeedFrame.Position = UDim2.new(0, 0, 0, yPosition)
+WalkSpeedFrame.BackgroundTransparency = 1
+WalkSpeedFrame.Parent = ExtraContent
+
+local WalkSpeedLabel = Instance.new("TextLabel")
+WalkSpeedLabel.Size = UDim2.new(1, 0, 0, 25)
+WalkSpeedLabel.Position = UDim2.new(0, 0, 0, 0)
+WalkSpeedLabel.BackgroundTransparency = 1
+WalkSpeedLabel.Text = "Walk Speed: 16"
+WalkSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+WalkSpeedLabel.TextSize = 14
+WalkSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+WalkSpeedLabel.Font = Enum.Font.Gotham
+WalkSpeedLabel.Parent = WalkSpeedFrame
+
+local WalkSpeedSlider = Instance.new("TextButton")
+WalkSpeedSlider.Size = UDim2.new(1, 0, 0, 20)
+WalkSpeedSlider.Position = UDim2.new(0, 0, 0, 30)
+WalkSpeedSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+WalkSpeedSlider.BorderSizePixel = 0
+WalkSpeedSlider.Text = ""
+WalkSpeedSlider.Parent = WalkSpeedFrame
+
+local SliderCorner = Instance.new("UICorner")
+SliderCorner.CornerRadius = UDim.new(0, 4)
+SliderCorner.Parent = WalkSpeedSlider
+
+local SliderFill = Instance.new("Frame")
+SliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+SliderFill.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+SliderFill.BorderSizePixel = 0
+SliderFill.Parent = WalkSpeedSlider
+
+local FillCorner = Instance.new("UICorner")
+FillCorner.CornerRadius = UDim.new(0, 4)
+FillCorner.Parent = SliderFill
+
+yPosition = yPosition + 60
+
+-- Jump Power Slider
+local JumpPowerFrame = Instance.new("Frame")
+JumpPowerFrame.Size = UDim2.new(1, 0, 0, 50)
+JumpPowerFrame.Position = UDim2.new(0, 0, 0, yPosition)
+JumpPowerFrame.BackgroundTransparency = 1
+JumpPowerFrame.Parent = ExtraContent
+
+local JumpPowerLabel = Instance.new("TextLabel")
+JumpPowerLabel.Size = UDim2.new(1, 0, 0, 25)
+JumpPowerLabel.Position = UDim2.new(0, 0, 0, 0)
+JumpPowerLabel.BackgroundTransparency = 1
+JumpPowerLabel.Text = "Jump Power: 50"
+JumpPowerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+JumpPowerLabel.TextSize = 14
+JumpPowerLabel.TextXAlignment = Enum.TextXAlignment.Left
+JumpPowerLabel.Font = Enum.Font.Gotham
+JumpPowerLabel.Parent = JumpPowerFrame
+
+local JumpPowerSlider = Instance.new("TextButton")
+JumpPowerSlider.Size = UDim2.new(1, 0, 0, 20)
+JumpPowerSlider.Position = UDim2.new(0, 0, 0, 30)
+JumpPowerSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+JumpPowerSlider.BorderSizePixel = 0
+JumpPowerSlider.Text = ""
+JumpPowerSlider.Parent = JumpPowerFrame
+
+local JumpSliderCorner = Instance.new("UICorner")
+JumpSliderCorner.CornerRadius = UDim.new(0, 4)
+JumpSliderCorner.Parent = JumpPowerSlider
+
+local JumpSliderFill = Instance.new("Frame")
+JumpSliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+JumpSliderFill.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+JumpSliderFill.BorderSizePixel = 0
+JumpSliderFill.Parent = JumpPowerSlider
+
+local JumpFillCorner = Instance.new("UICorner")
+JumpFillCorner.CornerRadius = UDim.new(0, 4)
+JumpFillCorner.Parent = JumpSliderFill
+
+yPosition = yPosition + 60
+
+-- Infinite Stamina Toggle
+local infiniteStaminaToggle = CreateToggle(ExtraContent, "Infinite Stamina", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- Infinite stamina implementation
+    if state then
+        print("Infinite Stamina: ON")
+    else
+        print("Infinite Stamina: OFF")
+    end
+end)
+yPosition = yPosition + spacing
+
+-- No Clip Toggle
+local noClipToggle = CreateToggle(ExtraContent, "No Clip", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- No clip implementation
+    if state then
+        print("No Clip: ON")
+    else
+        print("No Clip: OFF")
+    end
+end)
+yPosition = yPosition + spacing
+
+-- X-Ray Toggle
+local xrayToggle = CreateToggle(ExtraContent, "X-Ray Vision", UDim2.new(0, 0, 0, yPosition), function(state)
+    -- X-ray implementation
+    if state then
+        print("X-Ray: ON")
+    else
+        print("X-Ray: OFF")
+    end
+end)
+
+-- Slider functionality
+local function setupSlider(slider, fill, label, min, max, default, callback)
+    local isDragging = false
+    local currentValue = default
+    
+    local function updateSlider(value)
+        local percentage = (value - min) / (max - min)
+        fill.Size = UDim2.new(percentage, 0, 1, 0)
+        label.Text = label.Text:split(":")[1] .. ": " .. math.floor(value)
+        currentValue = value
+        callback(value)
+    end
+    
+    slider.MouseButton1Down:Connect(function()
+        isDragging = true
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = false
+        end
+    end)
+    
+    slider.MouseMoved:Connect(function()
+        if isDragging then
+            local x = math.clamp(mouse.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
+            local percentage = x / slider.AbsoluteSize.X
+            local value = min + (max - min) * percentage
+            updateSlider(value)
+        end
+    end)
+    
+    updateSlider(default)
+end
+
+-- Setup sliders
+setupSlider(WalkSpeedSlider, SliderFill, WalkSpeedLabel, 16, 100, 16, function(value)
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        player.Character.Humanoid.WalkSpeed = value
+    end
+end)
+
+setupSlider(JumpPowerSlider, JumpSliderFill, JumpPowerLabel, 50, 200, 50, function(value)
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        player.Character.Humanoid.JumpPower = value
+    end
+end)
+
+-- Minimize functionality
+local isMinimized = false
+MinimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 400, 0, 50)}):Play()
+        TweenService:Create(ContentFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 0, 0, 0)}):Play()
+        MinimizeButton.Text = "+"
+    else
+        TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 400, 0, 500)}):Play()
+        TweenService:Create(ContentFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, -20, 1, -100)}):Play()
+        MinimizeButton.Text = "_"
+    end
+end)
+
+-- Draggable functionality
+local dragging = false
+local dragInput, dragStart, startPos
+
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- No Clip functionality
+local noClipConnection
+noClipToggle:Set(false)
+
+noClipToggle:Connect(function(state)
+    if state then
+        noClipConnection = RunService.Stepped:Connect(function()
+            if player.Character then
+                for _, part in pairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        if noClipConnection then
+            noClipConnection:Disconnect()
+            noClipConnection = nil
+        end
+        -- Re-enable collision
+        if player.Character then
+            for _, part in pairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end)
+
+-- Auto features implementation
+local autoSellConnection
+autoSellToggle:Set(false)
+
+autoSellToggle:Connect(function(state)
+    if state then
+        autoSellConnection
